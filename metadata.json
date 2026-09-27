@@ -1,0 +1,10 @@
+{
+  "name": "PharmaLog",
+  "description": "Mobile-first pharmacy supplier invoice capture with Gemini AI extraction, logging line items into Google Sheets and Drive.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
