@@ -29,7 +29,7 @@ import {
 } from '@mui/icons-material';
 import { ExtractedInvoice, MasterInvoiceRow } from '../types';
 import { extractInvoiceFromImage, fileToBase64, generateSampleInvoicePhoto } from '../services/geminiExtraction';
-import { getStoredWorkspaceAuth, getSpreadsheetUrl, getDriveFolderUrl } from '../services/googleWorkspace';
+import { getStoredWorkspaceAuth, getSpreadsheetUrl, getDriveFolderUrl, formatIQD } from '../services/googleWorkspace';
 import { getCurrentUser, googleSignIn } from '../services/firebaseAuth';
 
 interface CaptureViewProps {
@@ -346,83 +346,40 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
         </Paper>
       )}
 
-      {/* Quick Test & Sample Invoice Presets */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          borderRadius: 3,
-          border: '1px solid #e2e8f0',
-          bgcolor: '#ffffff',
-          mb: 3,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <QuickIcon sx={{ color: '#0284c7', fontSize: 20 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-              Quick Demo Test
-            </Typography>
-          </Box>
-          <Chip label="1-Tap Testing" size="small" sx={{ bgcolor: '#e0f2fe', color: '#0369a1', fontWeight: 600 }} />
-        </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Test the Gemini extraction engine with a generated mixed Arabic/English pharmacy invoice:
-        </Typography>
-
-        <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }} className="no-scrollbar">
-          {knownStores.slice(0, 3).map((store) => (
-            <Chip
-              key={store}
-              label={store}
-              onClick={() => handleTestWithSample(store)}
-              disabled={loading}
-              clickable
-              variant="outlined"
-              sx={{
-                borderRadius: 2.5,
-                borderColor: '#cbd5e1',
-                fontWeight: 600,
-                fontSize: '0.8rem',
-                '&:hover': { borderColor: '#0f766e', bgcolor: '#f0fdfa' },
-              }}
-            />
-          ))}
-        </Stack>
-      </Paper>
-
       {/* Known Stores Quick Chips */}
-      <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <StoreIcon sx={{ fontSize: 18, color: '#0f766e' }} /> Known Distributors ({knownStores.length})
-          </Typography>
-          <Button
-            size="small"
-            onClick={onNavigateToStores}
-            endIcon={<ArrowForwardIcon fontSize="small" />}
-            sx={{ color: '#0f766e', fontWeight: 600, p: 0 }}
-          >
-            Manage
-          </Button>
-        </Box>
-
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {knownStores.map((store) => (
-            <Chip
-              key={store}
-              label={store}
+      {knownStores.length > 0 && (
+        <Box sx={{ mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <StoreIcon sx={{ fontSize: 18, color: '#0f766e' }} /> Known Distributors ({knownStores.length})
+            </Typography>
+            <Button
               size="small"
-              sx={{
-                bgcolor: '#f1f5f9',
-                color: '#334155',
-                fontWeight: 500,
-                fontSize: '0.8rem',
-              }}
-            />
-          ))}
+              onClick={onNavigateToStores}
+              endIcon={<ArrowForwardIcon fontSize="small" />}
+              sx={{ color: '#0f766e', fontWeight: 600, p: 0 }}
+            >
+              Manage
+            </Button>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {knownStores.map((store) => (
+              <Chip
+                key={store}
+                label={store}
+                size="small"
+                sx={{
+                  bgcolor: '#f1f5f9',
+                  color: '#334155',
+                  fontWeight: 500,
+                  fontSize: '0.8rem',
+                }}
+              />
+            ))}
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* Recent Logged Activity */}
       {recentRows.length > 0 && (
@@ -450,7 +407,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
           </Box>
 
           <Stack spacing={1.5}>
-            {recentRows.slice(0, 3).map((row) => (
+            {recentRows.slice(0, 5).map((row) => (
               <Box
                 key={row.id}
                 sx={{
@@ -471,7 +428,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
                   </Typography>
                 </Box>
                 <Typography variant="body2" className="font-mono-num" sx={{ fontWeight: 700, color: '#0f766e' }}>
-                  ${Number(row.line_total).toFixed(2)}
+                  {formatIQD(row.line_total)}
                 </Typography>
               </Box>
             ))}

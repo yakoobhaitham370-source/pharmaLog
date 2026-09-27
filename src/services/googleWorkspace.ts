@@ -10,9 +10,10 @@ const STORAGE_KEYS = {
   KNOWN_STORES: 'pharmalog_known_stores',
   LOCAL_MASTER_ROWS: 'pharmalog_local_master_rows',
   STORE_TABS: 'pharmalog_store_tabs',
+  DATA_INITIALIZED: 'pharmalog_cleaned_mock_v2',
 };
 
-const DEFAULT_STORES = [
+const LEGACY_MOCK_STORES = [
   'Al-Hikma Pharma - الحكمة',
   'Tabuk Pharmaceuticals - تبوك',
   'GSK Healthcare - جلاكسو',
@@ -22,17 +23,57 @@ const DEFAULT_STORES = [
   'United Pharma Depot',
 ];
 
+// Ensure clean slate without mock data
+function purgeLegacyMockDataOnce() {
+  if (typeof window === 'undefined') return;
+  const isPurged = localStorage.getItem(STORAGE_KEYS.DATA_INITIALIZED);
+  if (!isPurged) {
+    try {
+      const rawStores = localStorage.getItem(STORAGE_KEYS.KNOWN_STORES);
+      if (rawStores) {
+        const parsed = JSON.parse(rawStores);
+        if (Array.isArray(parsed)) {
+          // If it matches exactly the old mock list, clear it
+          const isMock = parsed.every((s) => LEGACY_MOCK_STORES.includes(s));
+          if (isMock) {
+            localStorage.removeItem(STORAGE_KEYS.KNOWN_STORES);
+          }
+        }
+      }
+
+      const rawRows = localStorage.getItem(STORAGE_KEYS.LOCAL_MASTER_ROWS);
+      if (rawRows) {
+        const parsedRows = JSON.parse(rawRows);
+        if (Array.isArray(parsedRows)) {
+          const nonMock = parsedRows.filter((r: any) => !r.id?.startsWith('seed-'));
+          if (nonMock.length !== parsedRows.length) {
+            localStorage.setItem(STORAGE_KEYS.LOCAL_MASTER_ROWS, JSON.stringify(nonMock));
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    localStorage.setItem(STORAGE_KEYS.DATA_INITIALIZED, 'true');
+  }
+}
+
+purgeLegacyMockDataOnce();
+
 export function getStoredKnownStores(): string[] {
   try {
+    purgeLegacyMockDataOnce();
     const raw = localStorage.getItem(STORAGE_KEYS.KNOWN_STORES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((s) => typeof s === 'string' && s.trim().length > 0);
+      }
     }
   } catch (e) {
     console.error('Failed to load stores from localStorage', e);
   }
-  return DEFAULT_STORES;
+  return [];
 }
 
 export function saveStoredKnownStores(stores: string[]): void {
@@ -494,73 +535,14 @@ export function getLocalMasterRows(): MasterInvoiceRow[] {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_MASTER_ROWS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((r) => r && !r.id?.startsWith('seed-'));
+      }
     }
   } catch (e) {
     console.error('Failed to get local master rows:', e);
   }
-
-  // Initial seed data with IQD amounts
-  const seedRows: MasterInvoiceRow[] = [
-    {
-      id: 'seed-1',
-      date: '2026-09-26',
-      store: 'نهلة عامة',
-      drug_name: 'Panadol Extra 500mg (بنادول اكسترا)',
-      quantity: 50,
-      unit_price: 4700.0,
-      line_total: 235000.0,
-      photoLink: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
-      invoiceNumber: '344561',
-    },
-    {
-      id: 'seed-2',
-      date: '2026-09-26',
-      store: 'نهلة عامة',
-      drug_name: 'Amoxicillin 500mg Caps (اموكسيسيلين)',
-      quantity: 30,
-      unit_price: 5500.0,
-      line_total: 165000.0,
-      photoLink: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
-      invoiceNumber: '344561',
-    },
-    {
-      id: 'seed-3',
-      date: '2026-09-25',
-      store: 'Al-Hikma Pharma - الحكمة',
-      drug_name: 'Lipitor 20mg (ليبيتور) Atorvastatin',
-      quantity: 20,
-      unit_price: 18000.0,
-      line_total: 360000.0,
-      photoLink: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=800&q=80',
-      invoiceNumber: 'HK-9821',
-    },
-    {
-      id: 'seed-4',
-      date: '2026-09-24',
-      store: 'Tabuk Pharmaceuticals - تبوك',
-      drug_name: 'Concor 5mg (كونكور) Bisoprolol',
-      quantity: 40,
-      unit_price: 7500.0,
-      line_total: 300000.0,
-      photoLink: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=800&q=80',
-      invoiceNumber: 'TB-4019',
-    },
-    {
-      id: 'seed-5',
-      date: '2026-09-22',
-      store: 'GSK Healthcare - جلاكسو',
-      drug_name: 'Augmentin 1g (اوجمنتين 1 جم) 14 Tab',
-      quantity: 60,
-      unit_price: 12000.0,
-      line_total: 720000.0,
-      photoLink: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=800&q=80',
-      invoiceNumber: 'GSK-7712',
-    },
-  ];
-
-  localStorage.setItem(STORAGE_KEYS.LOCAL_MASTER_ROWS, JSON.stringify(seedRows));
-  return seedRows;
+  return [];
 }
 
 export function saveLocalMasterRows(rows: MasterInvoiceRow[]): void {
@@ -568,6 +550,138 @@ export function saveLocalMasterRows(rows: MasterInvoiceRow[]): void {
     localStorage.setItem(STORAGE_KEYS.LOCAL_MASTER_ROWS, JSON.stringify(rows));
   } catch (e) {
     console.error('Failed to save master rows:', e);
+  }
+}
+
+/**
+ * Bidirectional synchronization with Google Sheets:
+ * 1. Ensures Spreadsheet and Drive Folder exist
+ * 2. Fetches all existing Sheet tabs (Distributor/Store tabs)
+ * 3. Reads all drug line items from 'All Invoices' (or individual store tabs)
+ * 4. Populates and synchronizes local master rows & known stores list
+ */
+export async function syncFromGoogleWorkspace(customToken?: string): Promise<{
+  success: boolean;
+  rows: MasterInvoiceRow[];
+  stores: string[];
+  message: string;
+}> {
+  const token = customToken || (await getAccessToken());
+  if (!token) {
+    return {
+      success: false,
+      rows: getLocalMasterRows(),
+      stores: getStoredKnownStores(),
+      message: 'Not connected to Google Account. Please connect your Google account to sync.',
+    };
+  }
+
+  try {
+    // 1. Ensure Drive Folder exists
+    await ensureDriveFolder(token);
+
+    // 2. Ensure / find Google Spreadsheet
+    const spreadsheetId = await ensureSpreadsheet(token);
+    if (!spreadsheetId || spreadsheetId.length < 5) {
+      throw new Error('Could not locate or create the Google Spreadsheet.');
+    }
+
+    // 3. Fetch spreadsheet metadata to discover all sheet tabs
+    const metaRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    let foundStoreTabs: string[] = [];
+    if (metaRes.ok) {
+      const metaData = await metaRes.json();
+      const sheets = metaData.sheets || [];
+      foundStoreTabs = sheets
+        .map((s: any) => s.properties?.title)
+        .filter(
+          (title: string) =>
+            title &&
+            title !== 'All Invoices' &&
+            title !== 'Master Log' &&
+            title !== 'Sheet1' &&
+            title !== 'README'
+        );
+    }
+
+    // 4. Fetch all rows from 'All Invoices' master tab
+    let fetchedRows: MasterInvoiceRow[] = [];
+    const valuesRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'All%20Invoices'!A2:H2000`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (valuesRes.ok) {
+      const valuesData = await valuesRes.json();
+      const rawRows: any[][] = valuesData.values || [];
+
+      fetchedRows = rawRows
+        .filter((r) => r && r.length > 0 && (r[1] || r[2]))
+        .map((r, idx) => {
+          const date = r[0] ? String(r[0]).trim() : new Date().toISOString().split('T')[0];
+          const store = r[1] ? String(r[1]).trim() : 'Unassigned Store';
+          const drug_name = r[2] ? String(r[2]).trim() : '';
+          const quantity = Number(String(r[3] || '').replace(/[^0-9.]/g, '')) || 1;
+          const unit_price = Number(String(r[4] || '').replace(/[^0-9.]/g, '')) || 0;
+          const line_total =
+            Number(String(r[5] || '').replace(/[^0-9.]/g, '')) || Number((quantity * unit_price).toFixed(2));
+          const photoLink = r[6] ? String(r[6]).trim() : '';
+          const invoiceNumber = r[7] ? String(r[7]).trim() : '';
+
+          return {
+            id: `row-${Date.now()}-${idx}`,
+            date,
+            store,
+            drug_name,
+            quantity,
+            unit_price,
+            line_total,
+            photoLink,
+            invoiceNumber,
+          };
+        });
+    }
+
+    // Combine stores from tabs + stores mentioned in rows + existing stores
+    const extractedStoresSet = new Set<string>();
+    foundStoreTabs.forEach((t) => extractedStoresSet.add(t));
+    fetchedRows.forEach((r) => {
+      if (r.store && r.store !== 'Unassigned Store') {
+        extractedStoresSet.add(r.store);
+      }
+    });
+
+    const currentLocalStores = getStoredKnownStores();
+    currentLocalStores.forEach((s) => extractedStoresSet.add(s));
+
+    const finalStoresList = Array.from(extractedStoresSet).filter(Boolean);
+
+    // Save synced data locally
+    saveLocalMasterRows(fetchedRows);
+    saveStoredKnownStores(finalStoresList);
+
+    return {
+      success: true,
+      rows: fetchedRows,
+      stores: finalStoresList,
+      message: `Synced ${fetchedRows.length} drug items and ${finalStoresList.length} store tabs from Google Sheets!`,
+    };
+  } catch (err: any) {
+    console.error('Error during Google Workspace sync:', err);
+    return {
+      success: false,
+      rows: getLocalMasterRows(),
+      stores: getStoredKnownStores(),
+      message: err?.message || 'Failed to sync with Google Sheets',
+    };
   }
 }
 

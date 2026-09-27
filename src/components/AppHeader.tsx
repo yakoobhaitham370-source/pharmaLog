@@ -29,6 +29,7 @@ import {
   Settings as SettingsIcon,
   Check as CheckIcon,
   Logout as LogoutIcon,
+  Sync as SyncIcon,
 } from '@mui/icons-material';
 import {
   getStoredWorkspaceAuth,
@@ -43,9 +44,11 @@ import { User } from 'firebase/auth';
 
 interface AppHeaderProps {
   onRefreshData?: () => void;
+  onSync?: (silent?: boolean) => Promise<void> | void;
+  isSyncing?: boolean;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isSyncing = false }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(getCurrentUser());
   const [auth, setAuth] = useState(getStoredWorkspaceAuth());
@@ -61,6 +64,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
       (user) => {
         setCurrentUser(user);
         setAuth(getStoredWorkspaceAuth());
+        if (onSync) onSync(true);
       },
       () => {
         setCurrentUser(null);
@@ -79,10 +83,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
       const res = await googleSignIn();
       setCurrentUser(res.user);
       setAuth(getStoredWorkspaceAuth());
-      if (onRefreshData) onRefreshData();
+      if (onSync) {
+        await onSync(false);
+      } else if (onRefreshData) {
+        onRefreshData();
+      }
     } catch (err: any) {
       console.error('Sign in error:', err);
-      setSignInError(err?.message || 'Google sign in failed. Please ensure popups are allowed.');
+      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+        setSignInError(
+          `Domain "${window.location.hostname}" is not authorized. Please add "${window.location.hostname}" in Firebase Console > Authentication > Settings > Authorized domains.`
+        );
+      } else {
+        setSignInError(err?.message || 'Google sign in failed. Please ensure popups are allowed.');
+      }
     } finally {
       setSigningIn(false);
     }
@@ -92,6 +106,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
     await logout();
     setCurrentUser(null);
     setAuth(getStoredWorkspaceAuth());
+    if (onRefreshData) onRefreshData();
   };
 
   const handleSaveCustomLinks = () => {
@@ -141,6 +156,27 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {currentUser && onSync && (
+              <IconButton
+                size="small"
+                onClick={() => onSync(false)}
+                disabled={isSyncing}
+                title="Sync from Google Sheets"
+                sx={{
+                  color: '#0f766e',
+                  bgcolor: '#f0fdfa',
+                  border: '1px solid #99f6e4',
+                  '&:hover': { bgcolor: '#ccfbf1' },
+                }}
+              >
+                {isSyncing ? (
+                  <CircularProgress size={18} sx={{ color: '#0f766e' }} />
+                ) : (
+                  <SyncIcon fontSize="small" />
+                )}
+              </IconButton>
+            )}
+
             <Chip
               icon={currentUser ? <CloudDoneIcon sx={{ fontSize: '16px !important' }} /> : <CloudQueueIcon sx={{ fontSize: '16px !important' }} />}
               label={currentUser ? 'Google Connected' : 'Connect Google Drive'}
@@ -347,7 +383,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData }) => {
             </Box>
           </Collapse>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, display: 'flex', gap: 1 }}>
+        <DialogActions sx={{ px: 3, pb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {currentUser && onSync && (
+            <Button
+              onClick={() => onSync(false)}
+              disabled={isSyncing}
+              variant="outlined"
+              startIcon={isSyncing ? <CircularProgress size={16} /> : <SyncIcon />}
+              sx={{ flex: { xs: '100%', sm: 1 }, color: '#0f766e', borderColor: '#99f6e4' }}
+            >
+              {isSyncing ? 'Syncing...' : 'Sync Sheet & Drive'}
+            </Button>
+          )}
           <Button
             onClick={() => exportInvoicesToCSV(getLocalMasterRows())}
             variant="outlined"

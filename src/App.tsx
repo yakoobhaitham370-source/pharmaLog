@@ -24,8 +24,10 @@ import {
   getStoredKnownStores,
   saveStoredKnownStores,
   getLocalMasterRows,
+  syncFromGoogleWorkspace,
 } from './services/googleWorkspace';
 import { fileToBase64, extractInvoiceFromImage } from './services/geminiExtraction';
+import { getCurrentUser } from './services/firebaseAuth';
 
 import { AppHeader } from './components/AppHeader';
 import { BottomNavBar } from './components/BottomNavBar';
@@ -41,6 +43,7 @@ export default function App() {
   // Application State
   const [knownStores, setKnownStores] = useState<string[]>([]);
   const [masterRows, setMasterRows] = useState<MasterInvoiceRow[]>([]);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Active Review State
   const [activeInvoice, setActiveInvoice] = useState<ExtractedInvoice | null>(null);
@@ -64,11 +67,52 @@ export default function App() {
   useEffect(() => {
     setKnownStores(getStoredKnownStores());
     setMasterRows(getLocalMasterRows());
+
+    // Auto-sync if user is logged in
+    if (getCurrentUser()) {
+      handleSyncData(true);
+    }
   }, []);
 
   const refreshData = () => {
     setKnownStores(getStoredKnownStores());
     setMasterRows(getLocalMasterRows());
+  };
+
+  const handleSyncData = async (silent: boolean = false) => {
+    setIsSyncing(true);
+    try {
+      const res = await syncFromGoogleWorkspace();
+      if (res.success) {
+        setKnownStores(res.stores);
+        setMasterRows(res.rows);
+        if (!silent) {
+          setSnackbar({
+            open: true,
+            message: res.message,
+            severity: 'success',
+          });
+        }
+      } else {
+        if (!silent) {
+          setSnackbar({
+            open: true,
+            message: res.message,
+            severity: 'info',
+          });
+        }
+      }
+    } catch (err: any) {
+      if (!silent) {
+        setSnackbar({
+          open: true,
+          message: err?.message || 'Sync encountered an issue',
+          severity: 'error',
+        });
+      }
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // Invoice extracted -> Open Bottom Sheet Review
@@ -171,7 +215,11 @@ export default function App() {
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
         {/* App Bar Header */}
-        <AppHeader onRefreshData={refreshData} />
+        <AppHeader
+          onRefreshData={refreshData}
+          onSync={handleSyncData}
+          isSyncing={isSyncing}
+        />
 
         {/* Hidden Camera Input for FAB */}
         <input
@@ -197,7 +245,13 @@ export default function App() {
           )}
 
           {currentTab === 'search' && (
-            <SearchView masterRows={masterRows} knownStores={knownStores} />
+            <SearchView
+              masterRows={masterRows}
+              knownStores={knownStores}
+              onSync={handleSyncData}
+              isSyncing={isSyncing}
+              onNavigateToCapture={() => setCurrentTab('capture')}
+            />
           )}
 
           {currentTab === 'stores' && (
@@ -208,6 +262,8 @@ export default function App() {
               onRenameStore={handleRenameStore}
               onDeleteStore={handleDeleteStore}
               onFilterByStore={handleFilterByStore}
+              onSync={handleSyncData}
+              isSyncing={isSyncing}
             />
           )}
 

@@ -9,6 +9,7 @@ import {
   Stack,
   Button,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -18,6 +19,8 @@ import {
   CalendarMonth as DateIcon,
   LocalPharmacy as DrugIcon,
   FileDownload as DownloadIcon,
+  Sync as SyncIcon,
+  PhotoCamera as CameraIcon,
 } from '@mui/icons-material';
 import { MasterInvoiceRow } from '../types';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
@@ -26,9 +29,18 @@ import { exportInvoicesToCSV, formatIQD } from '../services/googleWorkspace';
 interface SearchViewProps {
   masterRows: MasterInvoiceRow[];
   knownStores: string[];
+  onSync?: (silent?: boolean) => Promise<void> | void;
+  isSyncing?: boolean;
+  onNavigateToCapture?: () => void;
 }
 
-export const SearchView: React.FC<SearchViewProps> = ({ masterRows, knownStores }) => {
+export const SearchView: React.FC<SearchViewProps> = ({
+  masterRows,
+  knownStores,
+  onSync,
+  isSyncing = false,
+  onNavigateToCapture,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('ALL');
   const [previewPhoto, setPreviewPhoto] = useState<{
@@ -80,15 +92,31 @@ export const SearchView: React.FC<SearchViewProps> = ({ masterRows, knownStores 
             Search across all stores from the "All Invoices" master sheet
           </Typography>
         </Box>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<DownloadIcon />}
-          onClick={() => exportInvoicesToCSV(filteredRows)}
-          sx={{ borderRadius: 2, fontSize: '0.75rem', fontWeight: 600, color: '#0f766e', borderColor: '#99f6e4' }}
-        >
-          Export CSV
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {onSync && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={isSyncing ? <CircularProgress size={14} /> : <SyncIcon />}
+              onClick={() => onSync(false)}
+              disabled={isSyncing}
+              sx={{ borderRadius: 2, fontSize: '0.75rem', fontWeight: 600, color: '#0f766e', borderColor: '#99f6e4' }}
+            >
+              {isSyncing ? 'Syncing...' : 'Sync Sheet'}
+            </Button>
+          )}
+          {filteredRows.length > 0 && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={() => exportInvoicesToCSV(filteredRows)}
+              sx={{ borderRadius: 2, fontSize: '0.75rem', fontWeight: 600, color: '#0f766e', borderColor: '#99f6e4' }}
+            >
+              Export CSV
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Search Input Box */}
@@ -132,55 +160,80 @@ export const SearchView: React.FC<SearchViewProps> = ({ masterRows, knownStores 
       </Paper>
 
       {/* Store Filter Chips */}
-      <Box sx={{ mb: 2.5, overflowX: 'auto', pb: 0.5 }} className="no-scrollbar">
-        <Stack direction="row" spacing={1}>
-          <Chip
-            label="All Stores"
-            size="small"
-            clickable
-            color={selectedStoreFilter === 'ALL' ? 'primary' : 'default'}
-            variant={selectedStoreFilter === 'ALL' ? 'filled' : 'outlined'}
-            onClick={() => setSelectedStoreFilter('ALL')}
-            sx={{ fontWeight: 600 }}
-          />
-          {knownStores.map((store) => (
+      {knownStores.length > 0 && (
+        <Box sx={{ mb: 2.5, overflowX: 'auto', pb: 0.5 }} className="no-scrollbar">
+          <Stack direction="row" spacing={1}>
             <Chip
-              key={store}
-              label={store}
+              label="All Stores"
               size="small"
               clickable
-              color={selectedStoreFilter === store ? 'primary' : 'default'}
-              variant={selectedStoreFilter === store ? 'filled' : 'outlined'}
-              onClick={() => setSelectedStoreFilter(store)}
-              sx={{ fontWeight: 500, fontSize: '0.78rem' }}
+              color={selectedStoreFilter === 'ALL' ? 'primary' : 'default'}
+              variant={selectedStoreFilter === 'ALL' ? 'filled' : 'outlined'}
+              onClick={() => setSelectedStoreFilter('ALL')}
+              sx={{ fontWeight: 600 }}
             />
-          ))}
-        </Stack>
-      </Box>
+            {knownStores.map((store) => (
+              <Chip
+                key={store}
+                label={store}
+                size="small"
+                clickable
+                color={selectedStoreFilter === store ? 'primary' : 'default'}
+                variant={selectedStoreFilter === store ? 'filled' : 'outlined'}
+                onClick={() => setSelectedStoreFilter(store)}
+                sx={{ fontWeight: 500, fontSize: '0.78rem' }}
+              />
+            ))}
+          </Stack>
+        </Box>
+      )}
 
-      {/* Summary Stat Banner */}
-      <Box
-        sx={{
-          mb: 2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          bgcolor: '#f8fafc',
-          p: 1.5,
-          borderRadius: 2.5,
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: '#475569' }}>
-          Found <b>{filteredRows.length}</b> line items ({totalQuantity} total units)
-        </Typography>
-        <Typography variant="caption" className="font-mono-num" sx={{ fontWeight: 700, color: '#0f766e' }}>
-          Total: {formatIQD(totalCost)}
-        </Typography>
-      </Box>
+      {/* Statistics summary bar */}
+      {masterRows.length > 0 && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 1.5,
+            mb: 2.5,
+            borderRadius: 2.5,
+            bgcolor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+          }}
+        >
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+              MATCHING ROWS
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+              {filteredRows.length}
+            </Typography>
+          </Box>
+          <Divider orientation="vertical" flexItem />
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, display: 'block' }}>
+              TOTAL UNITS
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+              {totalQuantity}
+            </Typography>
+          </Box>
+          <Divider orientation="vertical" flexItem />
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#0f766e', fontWeight: 700, display: 'block' }}>
+              TOTAL VALUE (IQD)
+            </Typography>
+            <Typography variant="subtitle1" className="font-mono-num" sx={{ fontWeight: 800, color: '#0f766e' }}>
+              {formatIQD(totalCost)}
+            </Typography>
+          </Box>
+        </Paper>
+      )}
 
-      {/* Results List */}
-      <Stack spacing={2}>
+      {/* Rows List */}
+      <Stack spacing={1.5}>
         {filteredRows.map((row) => (
           <Paper
             key={row.id}
@@ -190,7 +243,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ masterRows, knownStores 
               borderRadius: 3,
               border: '1px solid #e2e8f0',
               bgcolor: '#ffffff',
-              transition: 'all 0.2s ease',
+              transition: 'all 0.15s ease',
               '&:hover': {
                 borderColor: '#99f6e4',
                 boxShadow: '0 4px 12px rgba(15, 118, 110, 0.08)',
@@ -300,11 +353,40 @@ export const SearchView: React.FC<SearchViewProps> = ({ masterRows, knownStores 
           <Paper elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: '#ffffff', borderRadius: 3, border: '1px solid #e2e8f0' }}>
             <DrugIcon sx={{ fontSize: 48, color: '#cbd5e1', mb: 1 }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#475569' }}>
-              No matching drug line items
+              {masterRows.length === 0 ? 'No logged invoices yet' : 'No matching drug line items'}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Try searching with another drug brand or generic name in Arabic or English.
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+              {masterRows.length === 0
+                ? 'Capture invoice photos or sync directly with your connected Google Spreadsheet.'
+                : 'Try searching with another drug brand or generic name in Arabic or English.'}
             </Typography>
+            {masterRows.length === 0 && (
+              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                {onNavigateToCapture && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<CameraIcon />}
+                    onClick={onNavigateToCapture}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    Capture Invoice
+                  </Button>
+                )}
+                {onSync && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={isSyncing ? <CircularProgress size={14} /> : <SyncIcon />}
+                    onClick={() => onSync(false)}
+                    disabled={isSyncing}
+                    sx={{ borderRadius: 2, color: '#0f766e', borderColor: '#99f6e4' }}
+                  >
+                    {isSyncing ? 'Syncing...' : 'Sync from Google Sheet'}
+                  </Button>
+                )}
+              </Box>
+            )}
           </Paper>
         )}
       </Stack>
