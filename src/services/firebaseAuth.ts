@@ -20,21 +20,57 @@ provider.setCustomParameters({
   access_type: 'offline',
 });
 
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'pharmalog_google_access_token',
+  USER_INFO: 'pharmalog_google_user_info',
+  AUTH_TIMESTAMP: 'pharmalog_auth_timestamp',
+};
+
 let isSigningIn = false;
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null);
 let cachedUser: User | null = null;
 
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  // Check stored access token on load
+  if (typeof window !== 'undefined') {
+    const storedToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (storedToken) {
+      cachedAccessToken = storedToken;
+    }
+  }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
     cachedUser = user;
-    if (user && cachedAccessToken) {
-      if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-    } else if (!user) {
-      cachedAccessToken = null;
-      if (onAuthFailure) onAuthFailure();
+    const token = cachedAccessToken || (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null);
+
+    if (user) {
+      // Store user metadata in localStorage for offline/fast load
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            STORAGE_KEYS.USER_INFO,
+            JSON.stringify({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+            })
+          );
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (onAuthSuccess) onAuthSuccess(user, token || '');
+    } else {
+      // Check if we have stored token or user info
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null;
+      if (!storedToken) {
+        cachedAccessToken = null;
+        if (onAuthFailure) onAuthFailure();
+      }
     }
   });
 };
@@ -50,6 +86,26 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
     cachedAccessToken = credential.accessToken;
     cachedUser = result.user;
+
+    // Persist to localStorage across page reloads
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, credential.accessToken);
+      localStorage.setItem(STORAGE_KEYS.AUTH_TIMESTAMP, Date.now().toString());
+      try {
+        localStorage.setItem(
+          STORAGE_KEYS.USER_INFO,
+          JSON.stringify({
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            photoURL: result.user.photoURL,
+          })
+        );
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Sign In error:', error);
@@ -60,15 +116,44 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 };
 
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  if (cachedAccessToken) return cachedAccessToken;
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (stored) {
+      cachedAccessToken = stored;
+      return stored;
+    }
+  }
+  return null;
 };
 
 export const getCurrentUser = (): User | null => {
-  return cachedUser || auth.currentUser;
+  if (cachedUser) return cachedUser;
+  if (auth.currentUser) return auth.currentUser;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.USER_INFO);
+      if (raw) {
+        return JSON.parse(raw) as User;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return null;
 };
 
 export const logout = async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error('Error signing out of Firebase:', e);
+  }
   cachedAccessToken = null;
   cachedUser = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER_INFO);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_TIMESTAMP);
+  }
 };

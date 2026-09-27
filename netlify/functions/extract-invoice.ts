@@ -1,10 +1,10 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
 const CANDIDATE_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-pro-preview',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 export const handler = async (event: any) => {

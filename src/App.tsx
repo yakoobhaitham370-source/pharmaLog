@@ -38,7 +38,22 @@ import { StoresView } from './views/StoresView';
 import { BulkImportView } from './views/BulkImportView';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'capture' | 'search' | 'stores' | 'bulk'>('capture');
+  const [currentTab, setCurrentTab] = useState<'capture' | 'search' | 'stores' | 'bulk'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pharmalog_active_tab');
+      if (saved === 'search' || saved === 'stores' || saved === 'bulk' || saved === 'capture') {
+        return saved;
+      }
+    }
+    return 'capture';
+  });
+
+  const handleTabChange = (newTab: 'capture' | 'search' | 'stores' | 'bulk') => {
+    setCurrentTab(newTab);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pharmalog_active_tab', newTab);
+    }
+  };
 
   // Application State
   const [knownStores, setKnownStores] = useState<string[]>([]);
@@ -238,9 +253,9 @@ export default function App() {
               knownStores={knownStores}
               recentRows={masterRows}
               onInvoiceExtracted={handleInvoiceExtracted}
-              onNavigateToSearch={() => setCurrentTab('search')}
-              onNavigateToStores={() => setCurrentTab('stores')}
-              onNavigateToBulk={() => setCurrentTab('bulk')}
+              onNavigateToSearch={() => handleTabChange('search')}
+              onNavigateToStores={() => handleTabChange('stores')}
+              onNavigateToBulk={() => handleTabChange('bulk')}
             />
           )}
 
@@ -250,7 +265,7 @@ export default function App() {
               knownStores={knownStores}
               onSync={handleSyncData}
               isSyncing={isSyncing}
-              onNavigateToCapture={() => setCurrentTab('capture')}
+              onNavigateToCapture={() => handleTabChange('capture')}
             />
           )}
 
@@ -277,7 +292,7 @@ export default function App() {
                   message: `Successfully logged ${count} invoices into Google Sheets!`,
                   severity: 'success',
                 });
-                setCurrentTab('search');
+                handleTabChange('search');
               }}
             />
           )}
@@ -314,7 +329,7 @@ export default function App() {
         />
 
         {/* Bottom Navigation Bar */}
-        <BottomNavBar currentTab={currentTab} onTabChange={setCurrentTab} />
+        <BottomNavBar currentTab={currentTab} onTabChange={handleTabChange} />
 
         {/* Global Snackbar for confirmations & errors */}
         <Snackbar

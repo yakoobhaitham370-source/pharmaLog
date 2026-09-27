@@ -28,10 +28,10 @@ interface ExtractRequestBody {
 
 // Candidates to try in order if high demand (503/429) happens on any single model
 const CANDIDATE_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-pro-preview',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 // POST /api/extract-invoice

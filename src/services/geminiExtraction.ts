@@ -7,12 +7,62 @@ export interface ExtractionResponse {
   error?: string;
 }
 
+// Fastest high-speed models prioritized first for rapid response
 const CANDIDATE_MODELS = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
-  'gemini-3.1-pro-preview',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
+
+// Compress and resize image client-side to ~1600px max dimension for 5x faster upload & OCR
+export async function optimizeImageForOcr(fileOrDataUrl: File | Blob | string, maxDimension = 1600, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(typeof fileOrDataUrl === 'string' ? fileOrDataUrl : '');
+        return;
+      }
+
+      // Draw background white to ensure transparent PNGs don't turn black
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const optimizedBase64 = canvas.toDataURL('image/jpeg', quality);
+      resolve(optimizedBase64);
+    };
+
+    img.onerror = (err) => reject(err);
+
+    if (typeof fileOrDataUrl === 'string') {
+      img.src = fileOrDataUrl;
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(fileOrDataUrl);
+    }
+  });
+}
 
 async function extractClientSide(
   imageBase64: string,

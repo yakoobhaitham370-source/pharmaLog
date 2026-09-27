@@ -28,7 +28,7 @@ import {
   OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { ExtractedInvoice, MasterInvoiceRow } from '../types';
-import { extractInvoiceFromImage, fileToBase64, generateSampleInvoicePhoto } from '../services/geminiExtraction';
+import { extractInvoiceFromImage, fileToBase64, optimizeImageForOcr, generateSampleInvoicePhoto } from '../services/geminiExtraction';
 import { getStoredWorkspaceAuth, getSpreadsheetUrl, getDriveFolderUrl, formatIQD } from '../services/googleWorkspace';
 import { getCurrentUser, googleSignIn } from '../services/firebaseAuth';
 
@@ -86,10 +86,13 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
     if (!file) return;
 
     try {
-      const base64 = await fileToBase64(file);
-      await processImage(base64, file.name);
+      setLoading(true);
+      setLoadingStep('Optimizing invoice photo for fast processing...');
+      const optimizedBase64 = await optimizeImageForOcr(file, 1600, 0.85);
+      await processImage(optimizedBase64, file.name);
     } catch (err: any) {
-      setErrorMessage('Could not read photo file.');
+      setErrorMessage('Could not process photo file.');
+      setLoading(false);
     } finally {
       e.target.value = '';
     }

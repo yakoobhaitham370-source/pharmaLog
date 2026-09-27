@@ -60,6 +60,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const handleOpenInfo = () => {
+    const currentAuth = getStoredWorkspaceAuth();
+    setAuth(currentAuth);
+    setCustomSheetInput(currentAuth.spreadsheetId || '');
+    setCustomDriveInput(currentAuth.driveFolderId || '');
+    setGeminiKeyInput(localStorage.getItem('gemini_api_key') || '');
+    setInfoOpen(true);
+  };
 
   useEffect(() => {
     const unsub = initAuth(
@@ -193,7 +201,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
               icon={currentUser ? <CloudDoneIcon sx={{ fontSize: '16px !important' }} /> : <CloudQueueIcon sx={{ fontSize: '16px !important' }} />}
               label={currentUser ? 'Google Connected' : 'Connect Google Drive'}
               size="small"
-              onClick={() => setInfoOpen(true)}
+              onClick={handleOpenInfo}
               color={currentUser ? 'primary' : 'default'}
               variant={currentUser ? 'filled' : 'outlined'}
               sx={{
@@ -209,7 +217,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
               }}
             />
 
-            <IconButton size="small" onClick={() => setInfoOpen(true)} sx={{ color: '#64748b' }}>
+            <IconButton size="small" onClick={handleOpenInfo} sx={{ color: '#64748b' }}>
               <InfoIcon fontSize="small" />
             </IconButton>
           </Box>
