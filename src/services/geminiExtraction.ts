@@ -11,7 +11,7 @@ const CANDIDATE_MODELS = [
   'gemini-2.5-flash',
   'gemini-flash-latest',
   'gemini-2.5-pro',
-  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
 ];
 
 async function extractClientSide(
@@ -170,7 +170,8 @@ export async function extractInvoiceFromImage(
   try {
     const endpoints = ['/api/extract-invoice', '/.netlify/functions/extract-invoice'];
     let raw: any = null;
-    let lastStatus = 0;
+    let lastErrorDetails: string = '';
+    const storedClientKey = localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
 
     for (const url of endpoints) {
       try {
@@ -183,41 +184,64 @@ export async function extractInvoiceFromImage(
             imageBase64,
             mimeType,
             knownStores,
+            apiKey: storedClientKey || undefined,
           }),
         });
 
-        lastStatus = res.status;
         const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
+        if (contentType.includes('application/json')) {
           const json = await res.json();
-          if (json.success && json.data) {
+          if (res.ok && json.success && json.data) {
             raw = json.data;
             break;
+          } else if (json.error) {
+            lastErrorDetails = json.error;
           }
+        } else {
+          lastErrorDetails = `HTTP ${res.status}`;
         }
-      } catch (endpointErr) {
-        console.warn(`Attempt on ${url} failed, checking alternatives...`, endpointErr);
+      } catch (endpointErr: any) {
+        lastErrorDetails = endpointErr?.message || 'Network error';
       }
     }
 
-    // If server endpoints return 404 (e.g. Netlify static deploy without functions), fall back to client-side SDK
+    // If server endpoints failed (e.g. Netlify missing GEMINI_API_KEY env var), fallback to direct browser client
     if (!raw) {
-      const clientApiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_api_key');
-      if (clientApiKey) {
-        raw = await extractClientSide(imageBase64, mimeType, knownStores, clientApiKey);
-      } else if (lastStatus === 404) {
-        // Prompt user once for Gemini API key if on static host
+      let clientApiKey = storedClientKey;
+
+      if (!clientApiKey) {
         const userEnteredKey = window.prompt(
-          'Netlify Function endpoint was not found (404). Please enter your free Gemini API Key once to enable direct browser extraction:'
+          'Gemini API key is required to analyze invoices.\n\nPlease enter your free Gemini API Key (from https://aistudio.google.com/app/apikey):'
         );
         if (userEnteredKey && userEnteredKey.trim()) {
-          localStorage.setItem('gemini_api_key', userEnteredKey.trim());
-          raw = await extractClientSide(imageBase64, mimeType, knownStores, userEnteredKey.trim());
-        } else {
-          throw new Error('Server responded with 404 and no Gemini API Key was configured.');
+          clientApiKey = userEnteredKey.trim();
+          localStorage.setItem('gemini_api_key', clientApiKey);
+        }
+      }
+
+      if (clientApiKey) {
+        try {
+          raw = await extractClientSide(imageBase64, mimeType, knownStores, clientApiKey);
+        } catch (clientErr: any) {
+          const errMsg = clientErr?.message || String(clientErr);
+          if (
+            errMsg.includes('API_KEY_INVALID') ||
+            errMsg.includes('API key not valid') ||
+            errMsg.includes('API_KEY') ||
+            errMsg.includes('400') ||
+            errMsg.includes('401')
+          ) {
+            localStorage.removeItem('gemini_api_key');
+            throw new Error(
+              'The Gemini API key provided is not valid. Please generate a valid free API key from https://aistudio.google.com/app/apikey (standard Google AI Studio keys start with "AIzaSy...").'
+            );
+          }
+          throw clientErr;
         }
       } else {
-        throw new Error(`Invoice extraction server returned status ${lastStatus || 'error'}.`);
+        throw new Error(
+          lastErrorDetails || 'GEMINI_API_KEY is not configured in Netlify environment variables or browser.'
+        );
       }
     }
 

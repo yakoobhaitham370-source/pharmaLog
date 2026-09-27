@@ -1,13 +1,10 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
-
 const CANDIDATE_MODELS = [
   'gemini-2.5-flash',
   'gemini-flash-latest',
   'gemini-2.5-pro',
-  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
 ];
 
 export const handler = async (event: any) => {
@@ -20,7 +17,7 @@ export const handler = async (event: any) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { imageBase64, mimeType = 'image/jpeg', knownStores = [] } = body;
+    const { imageBase64, mimeType = 'image/jpeg', knownStores = [], apiKey: clientPassedKey } = body;
 
     if (!imageBase64) {
       return {
@@ -30,13 +27,23 @@ export const handler = async (event: any) => {
       };
     }
 
-    if (!apiKey) {
+    const effectiveApiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      clientPassedKey;
+
+    if (!effectiveApiKey) {
       return {
-        statusCode: 500,
+        statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'GEMINI_API_KEY environment variable is not configured in Netlify' }),
+        body: JSON.stringify({
+          error: 'GEMINI_API_KEY environment variable is not configured on Netlify.',
+          code: 'MISSING_API_KEY',
+        }),
       };
     }
+
+    const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
     const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
 

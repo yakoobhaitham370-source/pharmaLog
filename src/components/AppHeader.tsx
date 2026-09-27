@@ -55,6 +55,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
   const [showConfig, setShowConfig] = useState(false);
   const [customSheetInput, setCustomSheetInput] = useState(auth.spreadsheetId || '');
   const [customDriveInput, setCustomDriveInput] = useState(auth.driveFolderId || '');
+  const [geminiKeyInput, setGeminiKeyInput] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [savedKeySuccess, setSavedKeySuccess] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
@@ -107,6 +109,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
     setCurrentUser(null);
     setAuth(getStoredWorkspaceAuth());
     if (onRefreshData) onRefreshData();
+  };
+
+  const handleSaveGeminiKey = () => {
+    if (geminiKeyInput.trim()) {
+      localStorage.setItem('gemini_api_key', geminiKeyInput.trim());
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+    setSavedKeySuccess(true);
+    setTimeout(() => setSavedKeySuccess(false), 2000);
   };
 
   const handleSaveCustomLinks = () => {
@@ -346,9 +358,48 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onRefreshData, onSync, isS
             </Box>
           </Box>
 
-          {/* Optional custom Sheet / Folder URL mapping */}
+          {/* Optional custom Sheet / Folder URL mapping and Gemini API Key */}
           <Collapse in={showConfig}>
             <Box sx={{ p: 2, bgcolor: '#ffffff', borderRadius: 3, border: '1px solid #cbd5e1', mb: 2 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: '#0f172a', display: 'block', mb: 0.5 }}>
+                GEMINI AI API KEY (FOR INVOICE OCR EXTRACTION)
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 1.5 }}>
+                Get your free API key from{' '}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#0f766e', fontWeight: 600, textDecoration: 'underline' }}
+                >
+                  Google AI Studio (aistudio.google.com)
+                </a>{' '}
+                (starts with <code>AIzaSy...</code>)
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="password"
+                  label="Gemini API Key"
+                  placeholder="AIzaSy..."
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                />
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleSaveGeminiKey}
+                  startIcon={savedKeySuccess ? <CheckIcon /> : undefined}
+                  color={savedKeySuccess ? 'success' : 'primary'}
+                  sx={{ fontWeight: 600, whiteSpace: 'nowrap', px: 2 }}
+                >
+                  {savedKeySuccess ? 'Saved!' : 'Save Key'}
+                </Button>
+              </Box>
+
+              <Divider sx={{ my: 1.5 }} />
+
               <Typography variant="caption" sx={{ fontWeight: 700, color: '#0f172a', display: 'block', mb: 1 }}>
                 CUSTOM GOOGLE SHEET OR DRIVE FOLDER LINK (OPTIONAL)
               </Typography>

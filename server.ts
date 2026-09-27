@@ -28,24 +28,31 @@ interface ExtractRequestBody {
 
 // Candidates to try in order if high demand (503/429) happens on any single model
 const CANDIDATE_MODELS = [
-  'gemini-3.8-flash',
+  'gemini-2.5-flash',
   'gemini-flash-latest',
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash',
 ];
 
 // POST /api/extract-invoice
-app.post('/api/extract-invoice', async (req: Request<{}, {}, ExtractRequestBody>, res: Response) => {
+app.post('/api/extract-invoice', async (req: Request<{}, {}, ExtractRequestBody & { apiKey?: string }>, res: Response) => {
   try {
-    const { imageBase64, mimeType = 'image/jpeg', knownStores = [] } = req.body;
+    const { imageBase64, mimeType = 'image/jpeg', knownStores = [], apiKey: clientApiKey } = req.body;
 
     if (!imageBase64) {
       return res.status(400).json({ error: 'imageBase64 image data is required' });
     }
 
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on server' });
+    const effectiveApiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+    if (!effectiveApiKey) {
+      return res.status(400).json({
+        error: 'Gemini API Key is not configured. Please provide your Gemini API Key in settings.',
+        code: 'MISSING_API_KEY',
+      });
     }
+
+    const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
     // Clean base64 string if it contains data prefix
     const base64Data = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
